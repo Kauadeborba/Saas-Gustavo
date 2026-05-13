@@ -35,8 +35,8 @@ export function HeroSection() {
 
           {/* Main Heading */}
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-foreground mb-6 animate-slide-in-up text-balance">
-            Notebooks & Peças de
-            <span className="text-gradient block mt-2">Informática</span>
+            GR Tech
+            <span className="text-gradient block mt-2">Manutenção e venda de notebooks</span>
           </h1>
 
           {/* Subheading */}
