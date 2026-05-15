@@ -46,7 +46,7 @@ export function Header() {
 
           {/* WhatsApp Button - Desktop */}
           <a
-            href="https://wa.me/5511999999999?text=Olá! Vim pelo site da TechNote."
+            href="https://wa.me/554884287544?text=Olá! Vim pelo site da TechNote."
             target="_blank"
             rel="noopener noreferrer"
             className="hidden md:flex"
@@ -92,7 +92,7 @@ export function Header() {
               </Button>
             </Link>
             <a
-              href="https://wa.me/5511999999999?text=Olá! Vim pelo site da TechNote."
+              href="https://wa.me/554884287544?text=Olá! Vim pelo site da TechNote."
               target="_blank"
               rel="noopener noreferrer"
               className="mt-2"

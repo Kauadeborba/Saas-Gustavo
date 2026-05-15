@@ -105,7 +105,7 @@ export default function ProductPage({ params }: ProductPageProps) {
               <div className="flex flex-col sm:flex-row gap-3 mb-8">
                 {isAvailable ? (
                   <a
-                    href={`https://wa.me/5511999999999?text=${whatsappMessage}`}
+                    href={`https://wa.me/554884287544?text=${whatsappMessage}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1"
@@ -121,7 +121,7 @@ export default function ProductPage({ params }: ProductPageProps) {
                   </Button>
                 )}
                 <a
-                  href={`https://wa.me/5511999999999?text=${whatsappMessage}`}
+                  href={`https://wa.me/554884287544?text=${whatsappMessage}`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >

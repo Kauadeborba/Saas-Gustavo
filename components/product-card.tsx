@@ -79,7 +79,7 @@ export function ProductCard({ product }: ProductCardProps) {
           </Link>
           {isAvailable && (
             <a
-              href={`https://wa.me/5511999999999?text=Olá! Tenho interesse no produto: ${product.name} (${formatPrice(product.price)})`}
+              href={`https://wa.me/554884287544?text=Olá! Tenho interesse no produto: ${product.name} (${formatPrice(product.price)})`}
               target="_blank"
               rel="noopener noreferrer"
             >

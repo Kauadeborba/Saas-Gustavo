@@ -143,22 +143,6 @@ function CatalogoContent() {
         </Select>
       </div>
 
-      {/* Price Range */}
-      <div className="space-y-4">
-        <Label className="text-foreground">Faixa de Preço</Label>
-        <Slider
-          value={priceRange}
-          onValueChange={(v) => setPriceRange(v as [number, number])}
-          max={maxPrice}
-          step={50}
-          className="py-4"
-        />
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>{formatPrice(priceRange[0])}</span>
-          <span>{formatPrice(priceRange[1])}</span>
-        </div>
-      </div>
-
       {/* Clear Filters */}
       {activeFiltersCount > 0 && (
         <Button variant="outline" onClick={clearFilters} className="w-full border-destructive/50 text-destructive hover:bg-destructive/10">

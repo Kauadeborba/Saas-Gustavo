@@ -54,7 +54,7 @@ export function HeroSection() {
               </Button>
             </Link>
             <a
-              href="https://wa.me/5511999999999?text=Olá! Vim pelo site da TechNote e gostaria de mais informações."
+              href="https://wa.me/554884287544?text=Olá! Vim pelo site da TechNote e gostaria de mais informações."
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -141,10 +141,10 @@ export function BenefitsSection() {
 
 export function CategoriesSection() {
   const categories = [
-    { name: 'Notebooks', image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&auto=format&fit=crop&q=80' },
-    { name: 'SSDs', image: 'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?w=400&auto=format&fit=crop&q=80' },
-    { name: 'Memórias RAM', image: 'https://images.unsplash.com/photo-1562976540-1502c2145186?w=400&auto=format&fit=crop&q=80' },
-    { name: 'Telas', image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=400&auto=format&fit=crop&q=80' },
+    { name: 'Notebook', image:'/notebook.jpg'},
+    { name: 'SSDs', image: '/ssds.jpg' },
+    { name: 'Memórias RAM', image: '/memorias-ram.jpg' },
+    { name: 'Telas', image: '/telas.jpg' },
   ];
 
   return (
