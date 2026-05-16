@@ -1,6 +1,6 @@
 'use client';
 
-import { Product, initialProducts, generateId } from '@/lib/products';
+import { Product } from '@/lib/products';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 
 interface StoreContextType {
@@ -22,56 +22,184 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'technote_products';
+type ApiResponse<T> = {
+  sucesso: boolean;
+  dados?: T;
+  erro?: string;
+};
+
+type ApiProduct = {
+  id: string;
+  nome?: string;
+  descricao?: string;
+  especificacoes?: string;
+  modelo?: string;
+  preco?: number;
+  preco_custo?: number;
+  condicao?: Product['condition'];
+  status?: Product['status'];
+  quantidade?: number;
+  publicado?: boolean;
+  observacoes_internas?: string;
+  imagem_url?: string;
+  criado_em?: string;
+  atualizado_em?: string;
+  // Campos opcionais para manter compatibilidade com formatos antigos.
+  name?: string;
+  description?: string;
+  specifications?: string;
+  model?: string;
+  price?: number;
+  costPrice?: number;
+  quantity?: number;
+  isPublished?: boolean;
+  internalNotes?: string;
+  imageUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  category?: string;
+  brand?: string;
+  categorias?: { nome?: string } | null;
+  marcas?: { nome?: string } | null;
+};
+
+function mapApiProductToProduct(item: ApiProduct): Product {
+  return {
+    id: String(item.id),
+    name: item.name ?? item.nome ?? 'Produto sem nome',
+    description: item.description ?? item.descricao ?? '',
+    specifications: item.specifications ?? item.especificacoes ?? '',
+    category: item.category ?? item.categorias?.nome ?? 'Sem categoria',
+    brand: item.brand ?? item.marcas?.nome ?? 'Sem marca',
+    model: item.model ?? item.modelo ?? '',
+    price: item.price ?? item.preco ?? 0,
+    costPrice: item.costPrice ?? item.preco_custo ?? 0,
+    condition: item.condicao ?? 'novo',
+    status: item.status ?? 'disponivel',
+    quantity: item.quantity ?? item.quantidade ?? 0,
+    isPublished: item.isPublished ?? item.publicado ?? false,
+    internalNotes: item.internalNotes ?? item.observacoes_internas ?? '',
+    imageUrl: item.imageUrl ?? item.imagem_url ?? '',
+    createdAt: item.createdAt ?? item.criado_em ?? new Date().toISOString().split('T')[0],
+    updatedAt: item.updatedAt ?? item.atualizado_em ?? new Date().toISOString().split('T')[0],
+  };
+}
+
+function mapProductToApiInput(product: Partial<Omit<Product, 'id' | 'createdAt' | 'updatedAt'>>) {
+  return {
+    nome: product.name,
+    descricao: product.description,
+    especificacoes: product.specifications,
+    category: product.category,
+    brand: product.brand,
+    modelo: product.model,
+    preco: product.price,
+    preco_custo: product.costPrice,
+    condicao: product.condition,
+    status: product.status,
+    quantidade: product.quantity,
+    publicado: product.isPublished,
+    observacoes_internas: product.internalNotes,
+    imagem_url: product.imageUrl,
+  };
+}
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        setProducts(JSON.parse(stored));
-      } catch {
-        setProducts(initialProducts);
-      }
-    } else {
-      setProducts(initialProducts);
+  const loadProducts = useCallback(async () => {
+    const response = await fetch('/api/produtos', { cache: 'no-store' });
+    const result = (await response.json()) as ApiResponse<ApiProduct[]>;
+
+    if (!response.ok || !result.sucesso || !result.dados) {
+      throw new Error(result.erro ?? 'Falha ao carregar produtos');
     }
-    setIsLoaded(true);
+
+    setProducts(result.dados.map(mapApiProductToProduct));
   }, []);
 
   useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
-    }
-  }, [products, isLoaded]);
+    const run = async () => {
+      try {
+        await loadProducts();
+      } catch (error) {
+        console.error('Erro ao buscar produtos da API:', error);
+        setProducts([]);
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+
+    void run();
+  }, [loadProducts]);
 
   const addProduct = useCallback((product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const now = new Date().toISOString().split('T')[0];
-    const newProduct: Product = {
-      ...product,
-      id: generateId(),
-      createdAt: now,
-      updatedAt: now,
+    const run = async () => {
+      try {
+        const response = await fetch('/api/produtos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mapProductToApiInput(product)),
+        });
+
+        const result = (await response.json()) as ApiResponse<ApiProduct>;
+        if (!response.ok || !result.sucesso || !result.dados) {
+          throw new Error(result.erro ?? 'Falha ao criar produto');
+        }
+
+        await loadProducts();
+      } catch (error) {
+        console.error('Erro ao criar produto:', error);
+      }
     };
-    setProducts(prev => [newProduct, ...prev]);
-  }, []);
+
+    void run();
+  }, [loadProducts]);
 
   const updateProduct = useCallback((id: string, updates: Partial<Product>) => {
-    setProducts(prev =>
-      prev.map(p =>
-        p.id === id
-          ? { ...p, ...updates, updatedAt: new Date().toISOString().split('T')[0] }
-          : p
-      )
-    );
-  }, []);
+    const run = async () => {
+      try {
+        const response = await fetch(`/api/produtos/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mapProductToApiInput(updates)),
+        });
+
+        const result = (await response.json()) as ApiResponse<ApiProduct>;
+        if (!response.ok || !result.sucesso) {
+          throw new Error(result.erro ?? 'Falha ao atualizar produto');
+        }
+
+        await loadProducts();
+      } catch (error) {
+        console.error('Erro ao atualizar produto:', error);
+      }
+    };
+
+    void run();
+  }, [loadProducts]);
 
   const deleteProduct = useCallback((id: string) => {
-    setProducts(prev => prev.filter(p => p.id !== id));
-  }, []);
+    const run = async () => {
+      try {
+        const response = await fetch(`/api/produtos/${id}`, {
+          method: 'DELETE',
+        });
+
+        const result = (await response.json()) as ApiResponse<null>;
+        if (!response.ok || !result.sucesso) {
+          throw new Error(result.erro ?? 'Falha ao remover produto');
+        }
+
+        await loadProducts();
+      } catch (error) {
+        console.error('Erro ao remover produto:', error);
+      }
+    };
+
+    void run();
+  }, [loadProducts]);
 
   const getProductById = useCallback(
     (id: string) => products.find(p => p.id === id),

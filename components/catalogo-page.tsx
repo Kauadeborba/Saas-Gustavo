@@ -21,6 +21,8 @@ function CatalogoContent() {
   const { getPublishedProducts } = useStore();
   const searchParams = useSearchParams();
   
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('todos');
   const [brand, setBrand] = useState<string>('todos');
@@ -37,7 +39,43 @@ function CatalogoContent() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    const loadMetadata = async () => {
+      try {
+        const [categoriasResponse, marcasResponse] = await Promise.all([
+          fetch('/api/categorias', { cache: 'no-store' }),
+          fetch('/api/marcas', { cache: 'no-store' }),
+        ]);
+
+        const categoriasResult = (await categoriasResponse.json()) as { dados?: Array<{ nome?: string }> };
+        const marcasResult = (await marcasResponse.json()) as { dados?: Array<{ nome?: string }> };
+
+        if (categoriasResponse.ok) {
+          setAvailableCategories((categoriasResult.dados ?? []).map((item) => item.nome ?? '').filter(Boolean));
+        }
+
+        if (marcasResponse.ok) {
+          setAvailableBrands((marcasResult.dados ?? []).map((item) => item.nome ?? '').filter(Boolean));
+        }
+      } catch (error) {
+        console.error('Erro ao carregar categorias/marcas:', error);
+      }
+    };
+
+    void loadMetadata();
+  }, []);
+
   const products = getPublishedProducts();
+
+  const categoryOptions = useMemo(() => {
+    const merged = new Set([...CATEGORIES, ...availableCategories, ...products.map((product) => product.category)]);
+    return Array.from(merged).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [availableCategories, products]);
+
+  const brandOptions = useMemo(() => {
+    const merged = new Set([...BRANDS, ...availableBrands, ...products.map((product) => product.brand)]);
+    return Array.from(merged).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [availableBrands, products]);
 
   const maxPrice = useMemo(() => {
     return Math.max(...products.map(p => p.price), 10000);
@@ -88,7 +126,7 @@ function CatalogoContent() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todas as categorias</SelectItem>
-            {CATEGORIES.map(cat => (
+            {categoryOptions.map(cat => (
               <SelectItem key={cat} value={cat}>{cat}</SelectItem>
             ))}
           </SelectContent>
@@ -104,7 +142,7 @@ function CatalogoContent() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todas as marcas</SelectItem>
-            {BRANDS.map(b => (
+            {brandOptions.map(b => (
               <SelectItem key={b} value={b}>{b}</SelectItem>
             ))}
           </SelectContent>

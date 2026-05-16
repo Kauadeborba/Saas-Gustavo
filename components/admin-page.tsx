@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
 import { useStore } from '@/lib/store-context';
@@ -17,7 +18,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Pencil, Trash2, Eye, EyeOff, Search, Package, AlertTriangle, MinusCircle, PlusCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, EyeOff, Search, Package, AlertTriangle, MinusCircle, PlusCircle, LogOut } from 'lucide-react';
+
+type AdminPageProps = {
+  currentUser: {
+    id: string;
+    nome: string;
+    email: string;
+    tipo: 'admin' | 'operador';
+    exp: number;
+  };
+};
 
 type FormData = Omit<Product, 'id' | 'createdAt' | 'updatedAt'>;
 
@@ -38,8 +49,11 @@ const initialFormData: FormData = {
   imageUrl: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&auto=format&fit=crop&q=80',
 };
 
-export default function AdminPage() {
+export default function AdminPage({ currentUser }: AdminPageProps) {
+  const router = useRouter();
   const { products, addProduct, updateProduct, deleteProduct, getStockSummary } = useStore();
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('todos');
   const [filterStatus, setFilterStatus] = useState<string>('todos');
@@ -49,6 +63,42 @@ export default function AdminPage() {
   const [formData, setFormData] = useState<FormData>(initialFormData);
 
   const summary = getStockSummary();
+
+  const categoryOptions = useMemo(() => {
+    const merged = new Set([...CATEGORIES, ...availableCategories, formData.category]);
+    return Array.from(merged).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [availableCategories, formData.category]);
+
+  const brandOptions = useMemo(() => {
+    const merged = new Set([...BRANDS, ...availableBrands, formData.brand]);
+    return Array.from(merged).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [availableBrands, formData.brand]);
+
+  useEffect(() => {
+    const loadMetadata = async () => {
+      try {
+        const [categoriasResponse, marcasResponse] = await Promise.all([
+          fetch('/api/categorias', { cache: 'no-store' }),
+          fetch('/api/marcas', { cache: 'no-store' }),
+        ]);
+
+        const categoriasResult = (await categoriasResponse.json()) as { dados?: Array<{ nome?: string }> };
+        const marcasResult = (await marcasResponse.json()) as { dados?: Array<{ nome?: string }> };
+
+        if (categoriasResponse.ok) {
+          setAvailableCategories((categoriasResult.dados ?? []).map((item) => item.nome ?? '').filter(Boolean));
+        }
+
+        if (marcasResponse.ok) {
+          setAvailableBrands((marcasResult.dados ?? []).map((item) => item.nome ?? '').filter(Boolean));
+        }
+      } catch (error) {
+        console.error('Erro ao carregar categorias/marcas:', error);
+      }
+    };
+
+    void loadMetadata();
+  }, []);
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = search === '' || 
@@ -116,6 +166,12 @@ export default function AdminPage() {
     setFormData(initialFormData);
   };
 
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+    router.refresh();
+  };
+
   const ProductForm = () => (
     <div className="grid gap-4 max-h-[60vh] overflow-y-auto pr-2">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -149,7 +205,7 @@ export default function AdminPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {CATEGORIES.map(cat => (
+              {categoryOptions.map(cat => (
                 <SelectItem key={cat} value={cat}>{cat}</SelectItem>
               ))}
             </SelectContent>
@@ -162,7 +218,7 @@ export default function AdminPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {BRANDS.map(b => (
+              {brandOptions.map(b => (
                 <SelectItem key={b} value={b}>{b}</SelectItem>
               ))}
             </SelectContent>
@@ -312,31 +368,41 @@ export default function AdminPage() {
                 Painel <span className="text-gradient">Administrativo</span>
               </h1>
               <p className="text-muted-foreground">Gerencie seus produtos e estoque</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Logado como <span className="font-medium text-foreground">{currentUser.nome}</span> ({currentUser.tipo})
+              </p>
             </div>
-            <Dialog open={isAddDialogOpen} onOpenChange={(open) => open ? setIsAddDialogOpen(true) : closeDialog()}>
-              <DialogTrigger asChild>
-                <Button className="gradient-primary text-white">
-                  <Plus className="w-5 h-5 mr-2" />
-                  Novo Produto
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl bg-card border-border">
-                <DialogHeader>
-                  <DialogTitle className="text-foreground">
-                    {editingProduct ? 'Editar Produto' : 'Cadastrar Novo Produto'}
-                  </DialogTitle>
-                </DialogHeader>
-                <ProductForm />
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
-                  </DialogClose>
-                  <Button onClick={handleSubmit} className="gradient-primary text-white" disabled={!formData.name || formData.price <= 0}>
-                    {editingProduct ? 'Salvar Alterações' : 'Cadastrar Produto'}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Dialog open={isAddDialogOpen} onOpenChange={(open) => open ? setIsAddDialogOpen(true) : closeDialog()}>
+                <DialogTrigger asChild>
+                  <Button className="gradient-primary text-white">
+                    <Plus className="w-5 h-5 mr-2" />
+                    Novo Produto
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl bg-card border-border">
+                  <DialogHeader>
+                    <DialogTitle className="text-foreground">
+                      {editingProduct ? 'Editar Produto' : 'Cadastrar Novo Produto'}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <ProductForm />
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
+                    </DialogClose>
+                    <Button onClick={handleSubmit} className="gradient-primary text-white" disabled={!formData.name || formData.price <= 0}>
+                      {editingProduct ? 'Salvar Alterações' : 'Cadastrar Produto'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Button variant="outline" onClick={handleLogout}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Sair
+              </Button>
+            </div>
           </div>
 
           {/* Summary Cards */}
@@ -405,7 +471,7 @@ export default function AdminPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todas Categorias</SelectItem>
-                {CATEGORIES.map(cat => (
+                {categoryOptions.map(cat => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
               </SelectContent>
