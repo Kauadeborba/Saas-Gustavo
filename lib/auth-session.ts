@@ -24,7 +24,7 @@ function fromBase64Url(value: string) {
 }
 
 function getSessionSecret() {
-  return process.env.AUTH_SESSION_SECRET ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'dev-session-secret';
+  return process.env.AUTH_SESSION_SECRET ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? 'dev-session-secret';
 }
 
 function signPayload(payload: string) {

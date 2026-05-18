@@ -23,7 +23,7 @@ function getRequiredEnv(name: string) {
 // Lê as variáveis públicas do ambiente.
 // Elas vêm do seu arquivo .env.local.
 const rawSupabaseUrl = getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL');
-const supabaseAnonKey = getRequiredEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+const supabasePublishableKey = getRequiredEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
 
 // Aceita tanto:
 // - https://projeto.supabase.co
@@ -38,7 +38,7 @@ const supabaseUrl = normalizeSupabaseUrl(rawSupabaseUrl);
 // Cliente para uso no browser (componentes "use client").
 // Exemplo de uso: const supabase = createSupabaseBrowserClient();
 export function createSupabaseBrowserClient() {
-	return createBrowserClient(supabaseUrl, supabaseAnonKey);
+	return createBrowserClient(supabaseUrl, supabasePublishableKey);
 }
 
 // Cliente para uso no server (APIs do Next.js App Router).
@@ -47,7 +47,7 @@ export function createSupabaseBrowserClient() {
 export async function createSupabaseServerClient() {
 	const cookieStore = await cookies();
 
-	return createServerClient(supabaseUrl, supabaseAnonKey, {
+	return createServerClient(supabaseUrl, supabasePublishableKey, {
 		cookies: {
 			get(name: string) {
 				return cookieStore.get(name)?.value;
