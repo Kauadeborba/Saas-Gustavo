@@ -12,7 +12,16 @@ import { logAction } from '@/lib/audit-log';
 // POST: Login
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient();
+    // Use a service role key (admin) que ignora RLS
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceRoleKey) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY não configurada');
+    }
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+
     const { email, senha } = (await request.json()) as { email?: string; senha?: string };
 
     if (!email || !senha) {
@@ -22,13 +31,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const emailLimpo = email.trim().toLowerCase();
+    
     const { data: usuario, error } = await supabase
       .from('usuarios')
       .select('id, nome, email, tipo, senha_hash')
-      .eq('email', email)
+      .eq('email', emailLimpo)
       .maybeSingle();
 
+    // DEBUG
+    console.log('=== DEBUG LOGIN ===');
+    console.log('email recebido:', email);
+    console.log('email limpo:', emailLimpo);
+    console.log('erro da query:', error);
+    console.log('usuario encontrado:', usuario);
+    if (usuario) {
+      console.log('usuario.id:', usuario.id);
+      console.log('usuario.email:', usuario.email);
+      console.log('usuario.tipo:', usuario.tipo);
+      console.log('usuario.senha_hash existe:', !!usuario.senha_hash);
+    }
+    console.log('=================');
+
     if (error) {
+      console.error('Erro Supabase detalhado:', error);
       return NextResponse.json(
         { sucesso: false, erro: 'Falha ao consultar usuário', detalhe: error.message },
         { status: 500 }
@@ -37,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     if (!usuario || !verifyPassword(senha, usuario.senha_hash)) {
       return NextResponse.json({ sucesso: false, erro: 'Credenciais inválidas' }, { status: 401 });
-    }
+    } 
 
     // Token/sessão ainda simplificado para não quebrar seu fluxo atual.
     // Próximo passo pode ser usar JWT assinado ou Supabase Auth completo.

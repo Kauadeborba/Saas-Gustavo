@@ -45,7 +45,16 @@ export async function GET() {
 // POST: Cria um novo usuário
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient();
+    // Use a service role key (admin) que ignora RLS
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceRoleKey) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY não configurada');
+    }
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+
     const body = (await request.json()) as UsuarioInput;
 
     const senhaHash = body.senha ? hashPassword(body.senha) : body.senha_hash;

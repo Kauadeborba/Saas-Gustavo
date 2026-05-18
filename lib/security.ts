@@ -15,18 +15,27 @@ export function hashPassword(password: string) {
 
 // Valida a senha informada comparando com o hash armazenado.
 export function verifyPassword(password: string, storedHash: string) {
+  console.log('=== DEBUG verifyPassword ===');
+  console.log('password recebido:', password);
+  console.log('storedHash recebido:', storedHash);
+  console.log('storedHash contém "$"?', storedHash.includes('$'));
+  console.log('=================');
   const [prefix, iterationsRaw, salt, hash] = storedHash.split('$');
 
   if (!prefix || !iterationsRaw || !salt || !hash) {
+    console.log('❌ Hash INVÁLIDO - faltam componentes');
+    console.log('prefix:', prefix, '| iterationsRaw:', iterationsRaw, '| salt:', salt, '| hash:', hash);
     return false;
   }
 
   if (prefix !== HASH_PREFIX) {
+    console.log('❌ Prefix errado:', prefix);
     return false;
   }
 
   const iterations = Number(iterationsRaw);
   if (!Number.isFinite(iterations) || iterations <= 0) {
+    console.log('❌ Iterações inválidas:', iterations);
     return false;
   }
 
