@@ -12,6 +12,23 @@ interface ProductCardProps {
   product: Product;
 }
 
+// Extrai a primeira imagem válida (pode ser JSON array ou string única)
+function getFirstImage(imageUrl: string): string {
+  if (!imageUrl) return '/placeholder.png';
+  
+  try {
+    // Tenta parsear como JSON array
+    if (imageUrl.startsWith('[')) {
+      const images = JSON.parse(imageUrl) as string[];
+      return images[0] || '/placeholder.png';
+    }
+  } catch (e) {
+    // Se não for JSON válido, usa como string única
+  }
+  
+  return imageUrl;
+}
+
 export function ProductCard({ product }: ProductCardProps) {
   const statusInfo = getStatusInfo(product.status);
   const isAvailable = product.status === 'disponivel' && product.quantity > 0;
@@ -20,7 +37,7 @@ export function ProductCard({ product }: ProductCardProps) {
     <Card className="group overflow-hidden hover-lift bg-card border-border">
       <div className="relative aspect-[4/3] overflow-hidden">
         <Image
-          src={product.imageUrl}
+          src={getFirstImage(product.imageUrl)}
           alt={product.name}
           fill
           className="object-cover transition-transform duration-500 group-hover:scale-110"

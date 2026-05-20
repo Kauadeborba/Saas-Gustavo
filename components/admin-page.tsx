@@ -12,13 +12,41 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Pencil, Trash2, Eye, EyeOff, Search, Package, AlertTriangle, MinusCircle, PlusCircle, LogOut } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, EyeOff, Search, Package, AlertTriangle, MinusCircle, PlusCircle, LogOut, Upload, X } from 'lucide-react';
+
+// Funções helper para conversão de preços
+const parsePriceInput = (value: string): number => {
+  if (value === '') return 0;
+  // Remove todos os pontos de separação de milhar, depois converte vírgula para ponto
+  // Ex: "2.750,50" -> "2750,50" -> "2750.50"
+  const normalized = value
+    .replace(/\./g, '') // Remove todos os pontos
+    .replace(',', '.'); // Converte vírgula para ponto
+  const parsed = parseFloat(normalized);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
+const formatPriceDisplay = (value: number): string => {
+  if (value === 0) return '';
+  return value.toString();
+};
+
+const getFirstImage = (imageUrl: string): string => {
+  if (!imageUrl) return '/placeholder.png';
+  try {
+    if (imageUrl.startsWith('[')) {
+      const images = JSON.parse(imageUrl) as string[];
+      return images[0] || '/placeholder.png';
+    }
+  } catch (e) {}
+  return imageUrl;
+};
 
 type AdminPageProps = {
   currentUser: {
@@ -32,147 +60,46 @@ type AdminPageProps = {
 
 type FormData = Omit<Product, 'id' | 'createdAt' | 'updatedAt'>;
 
-const initialFormData: FormData = {
-  name: '',
-  description: '',
-  specifications: '',
-  category: 'Notebooks',
-  brand: 'Dell',
-  model: '',
-  price: 0,
-  costPrice: 0,
-  condition: 'novo',
-  status: 'disponivel',
-  quantity: 1,
-  isPublished: true,
-  internalNotes: '',
-  imageUrl: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&auto=format&fit=crop&q=80',
-};
+interface ProductFormProps {
+  formData: FormData;
+  imageUrls: string[];
+  priceInputValue: string;
+  costPriceInputValue: string;
+  categoryOptions: string[];
+  brandOptions: string[];
+  isDraggingImage: boolean;
+  handleFormChange: (field: keyof FormData, value: string | number | boolean) => void;
+  handleAddImage: (base64: string) => void;
+  handleRemoveImage: (index: number) => void;
+  handlePriceInputChange: (value: string) => void;
+  handleCostPriceInputChange: (value: string) => void;
+  handlePriceInputBlur: () => void;
+  handleCostPriceInputBlur: () => void;
+  handleImageChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleImageDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  setIsDraggingImage: (isDragging: boolean) => void;
+}
 
-export default function AdminPage({ currentUser }: AdminPageProps) {
-  const router = useRouter();
-  const { products, addProduct, updateProduct, deleteProduct, getStockSummary } = useStore();
-  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
-  const [availableBrands, setAvailableBrands] = useState<string[]>([]);
-  const [search, setSearch] = useState('');
-  const [filterCategory, setFilterCategory] = useState<string>('todos');
-  const [filterStatus, setFilterStatus] = useState<string>('todos');
-  const [filterPublished, setFilterPublished] = useState<string>('todos');
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [formData, setFormData] = useState<FormData>(initialFormData);
-
-  const summary = getStockSummary();
-
-  const categoryOptions = useMemo(() => {
-    const merged = new Set([...CATEGORIES, ...availableCategories, formData.category]);
-    return Array.from(merged).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [availableCategories, formData.category]);
-
-  const brandOptions = useMemo(() => {
-    const merged = new Set([...BRANDS, ...availableBrands, formData.brand]);
-    return Array.from(merged).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [availableBrands, formData.brand]);
-
-  useEffect(() => {
-    const loadMetadata = async () => {
-      try {
-        const [categoriasResponse, marcasResponse] = await Promise.all([
-          fetch('/api/categorias', { cache: 'no-store' }),
-          fetch('/api/marcas', { cache: 'no-store' }),
-        ]);
-
-        const categoriasResult = (await categoriasResponse.json()) as { dados?: Array<{ nome?: string }> };
-        const marcasResult = (await marcasResponse.json()) as { dados?: Array<{ nome?: string }> };
-
-        if (categoriasResponse.ok) {
-          setAvailableCategories((categoriasResult.dados ?? []).map((item) => item.nome ?? '').filter(Boolean));
-        }
-
-        if (marcasResponse.ok) {
-          setAvailableBrands((marcasResult.dados ?? []).map((item) => item.nome ?? '').filter(Boolean));
-        }
-      } catch (error) {
-        console.error('Erro ao carregar categorias/marcas:', error);
-      }
-    };
-
-    void loadMetadata();
-  }, []);
-
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = search === '' || 
-      product.name.toLowerCase().includes(search.toLowerCase()) ||
-      product.brand.toLowerCase().includes(search.toLowerCase()) ||
-      product.model.toLowerCase().includes(search.toLowerCase());
-    
-    const matchesCategory = filterCategory === 'todos' || product.category === filterCategory;
-    const matchesStatus = filterStatus === 'todos' || product.status === filterStatus;
-    const matchesPublished = filterPublished === 'todos' || 
-      (filterPublished === 'publicado' ? product.isPublished : !product.isPublished);
-
-    return matchesSearch && matchesCategory && matchesStatus && matchesPublished;
-  });
-
-  const handleFormChange = (field: keyof FormData, value: string | number | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmit = () => {
-    if (editingProduct) {
-      updateProduct(editingProduct.id, formData);
-      setEditingProduct(null);
-    } else {
-      addProduct(formData);
-    }
-    setFormData(initialFormData);
-    setIsAddDialogOpen(false);
-  };
-
-  const handleEdit = (product: Product) => {
-    setEditingProduct(product);
-    setFormData({
-      name: product.name,
-      description: product.description,
-      specifications: product.specifications,
-      category: product.category,
-      brand: product.brand,
-      model: product.model,
-      price: product.price,
-      costPrice: product.costPrice,
-      condition: product.condition,
-      status: product.status,
-      quantity: product.quantity,
-      isPublished: product.isPublished,
-      internalNotes: product.internalNotes,
-      imageUrl: product.imageUrl,
-    });
-    setIsAddDialogOpen(true);
-  };
-
-  const handleTogglePublish = (product: Product) => {
-    updateProduct(product.id, { isPublished: !product.isPublished });
-  };
-
-  const handleQuickQuantityChange = (product: Product, delta: number) => {
-    const newQuantity = Math.max(0, product.quantity + delta);
-    const newStatus = newQuantity === 0 ? 'sem_estoque' : (product.status === 'sem_estoque' ? 'disponivel' : product.status);
-    updateProduct(product.id, { quantity: newQuantity, status: newStatus as ProductStatus });
-  };
-
-  const closeDialog = () => {
-    setIsAddDialogOpen(false);
-    setEditingProduct(null);
-    setFormData(initialFormData);
-  };
-
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/login');
-    router.refresh();
-  };
-
-  const ProductForm = () => (
+function ProductFormComponent({
+  formData,
+  imageUrls,
+  priceInputValue,
+  costPriceInputValue,
+  categoryOptions,
+  brandOptions,
+  isDraggingImage,
+  handleFormChange,
+  handleAddImage,
+  handleRemoveImage,
+  handlePriceInputChange,
+  handleCostPriceInputChange,
+  handlePriceInputBlur,
+  handleCostPriceInputBlur,
+  handleImageChange,
+  handleImageDrop,
+  setIsDraggingImage,
+}: ProductFormProps) {
+  return (
     <div className="grid gap-4 max-h-[60vh] overflow-y-auto pr-2">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -244,11 +171,12 @@ export default function AdminPage({ currentUser }: AdminPageProps) {
           <Label htmlFor="price">Preço de Venda (R$) *</Label>
           <Input
             id="price"
-            type="number"
-            min="0"
-            step="0.01"
-            value={formData.price}
-            onChange={(e) => handleFormChange('price', parseFloat(e.target.value) || 0)}
+            type="text"
+            inputMode="decimal"
+            value={priceInputValue}
+            onChange={(e) => handlePriceInputChange(e.target.value)}
+            onBlur={handlePriceInputBlur}
+            placeholder="0,00"
             className="bg-input border-border"
           />
         </div>
@@ -256,11 +184,12 @@ export default function AdminPage({ currentUser }: AdminPageProps) {
           <Label htmlFor="costPrice">Preço de Custo (R$)</Label>
           <Input
             id="costPrice"
-            type="number"
-            min="0"
-            step="0.01"
-            value={formData.costPrice}
-            onChange={(e) => handleFormChange('costPrice', parseFloat(e.target.value) || 0)}
+            type="text"
+            inputMode="decimal"
+            value={costPriceInputValue}
+            onChange={(e) => handleCostPriceInputChange(e.target.value)}
+            onBlur={handleCostPriceInputBlur}
+            placeholder="0,00"
             className="bg-input border-border"
           />
         </div>
@@ -271,7 +200,8 @@ export default function AdminPage({ currentUser }: AdminPageProps) {
             type="number"
             min="0"
             value={formData.quantity}
-            onChange={(e) => handleFormChange('quantity', parseInt(e.target.value) || 0)}
+            onChange={(e) => handleFormChange('quantity', e.target.value === '' ? 0 : parseInt(e.target.value))}
+            placeholder="0"
             className="bg-input border-border"
           />
         </div>
@@ -292,14 +222,75 @@ export default function AdminPage({ currentUser }: AdminPageProps) {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="imageUrl">URL da Imagem</Label>
-          <Input
-            id="imageUrl"
-            value={formData.imageUrl}
-            onChange={(e) => handleFormChange('imageUrl', e.target.value)}
-            placeholder="https://..."
-            className="bg-input border-border"
-          />
+          <Label className="text-foreground font-medium">Fotos do Produto</Label>
+          <div
+            onDrop={handleImageDrop}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDraggingImage(true);
+            }}
+            onDragLeave={() => setIsDraggingImage(false)}
+            className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-all ${
+              isDraggingImage
+                ? 'border-primary bg-primary/5'
+                : imageUrls.length > 0
+                ? 'border-primary/30 bg-primary/5'
+                : 'border-border hover:border-primary/50'
+            }`}
+          >
+            <input
+              id="imageFile"
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+              multiple
+            />
+            
+            {imageUrls.length > 0 ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  {imageUrls.map((url, index) => (
+                    <div key={index} className="relative group">
+                      <div className="relative w-full aspect-square rounded-lg overflow-hidden border border-border">
+                        <img
+                          src={url}
+                          alt={`Foto ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index)}
+                            className="bg-destructive text-white rounded-full p-2 hover:bg-destructive/90"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <span className="absolute top-1 left-1 bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
+                        {index + 1}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">{imageUrls.length} foto(s) adicionada(s)</p>
+                  <p>Clique ou arraste para adicionar mais</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex justify-center">
+                  <Upload className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <div className="text-sm">
+                  <p className="font-medium text-foreground">Arraste as fotos aqui</p>
+                  <p className="text-muted-foreground">ou clique para selecionar</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -354,6 +345,253 @@ export default function AdminPage({ currentUser }: AdminPageProps) {
       </div>
     </div>
   );
+}
+
+const initialFormData: FormData = {
+  name: '',
+  description: '',
+  specifications: '',
+  category: 'Notebooks',
+  brand: 'Dell',
+  model: '',
+  price: 0,
+  costPrice: 0,
+  condition: 'novo',
+  status: 'disponivel',
+  quantity: 1,
+  isPublished: true,
+  internalNotes: '',
+  imageUrl: '',
+};
+
+export default function AdminPage({ currentUser }: AdminPageProps) {
+  const router = useRouter();
+  const { products, addProduct, updateProduct, deleteProduct, getStockSummary } = useStore();
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [availableBrands, setAvailableBrands] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
+  const [filterCategory, setFilterCategory] = useState<string>('todos');
+  const [filterStatus, setFilterStatus] = useState<string>('todos');
+  const [filterPublished, setFilterPublished] = useState<string>('todos');
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const [priceInputValue, setPriceInputValue] = useState<string>('');
+  const [costPriceInputValue, setCostPriceInputValue] = useState<string>('');
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+
+  const summary = getStockSummary();
+
+  const categoryOptions = useMemo(() => {
+    const merged = new Set([...CATEGORIES, ...availableCategories, formData.category]);
+    return Array.from(merged).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [availableCategories, formData.category]);
+
+  const brandOptions = useMemo(() => {
+    const merged = new Set([...BRANDS, ...availableBrands, formData.brand]);
+    return Array.from(merged).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [availableBrands, formData.brand]);
+
+  useEffect(() => {
+    const loadMetadata = async () => {
+      try {
+        const [categoriasResponse, marcasResponse] = await Promise.all([
+          fetch('/api/categorias', { cache: 'no-store' }),
+          fetch('/api/marcas', { cache: 'no-store' }),
+        ]);
+
+        const categoriasResult = (await categoriasResponse.json()) as { dados?: Array<{ nome?: string }> };
+        const marcasResult = (await marcasResponse.json()) as { dados?: Array<{ nome?: string }> };
+
+        if (categoriasResponse.ok) {
+          setAvailableCategories((categoriasResult.dados ?? []).map((item) => item.nome ?? '').filter(Boolean));
+        }
+
+        if (marcasResponse.ok) {
+          setAvailableBrands((marcasResult.dados ?? []).map((item) => item.nome ?? '').filter(Boolean));
+        }
+      } catch (error) {
+        console.error('Erro ao carregar categorias/marcas:', error);
+      }
+    };
+
+    void loadMetadata();
+  }, []);
+
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = search === '' || 
+      product.name.toLowerCase().includes(search.toLowerCase()) ||
+      product.brand.toLowerCase().includes(search.toLowerCase()) ||
+      product.model.toLowerCase().includes(search.toLowerCase());
+    
+    const matchesCategory = filterCategory === 'todos' || product.category === filterCategory;
+    const matchesStatus = filterStatus === 'todos' || product.status === filterStatus;
+    const matchesPublished = filterPublished === 'todos' || 
+      (filterPublished === 'publicado' ? product.isPublished : !product.isPublished);
+
+    return matchesSearch && matchesCategory && matchesStatus && matchesPublished;
+  });
+
+  const handleFormChange = (field: keyof FormData, value: string | number | boolean) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handlePriceInputChange = (value: string) => {
+    setPriceInputValue(value);
+  };
+
+  const handleCostPriceInputChange = (value: string) => {
+    setCostPriceInputValue(value);
+  };
+
+  const handlePriceInputBlur = () => {
+    const parsed = parsePriceInput(priceInputValue);
+    handleFormChange('price', parsed);
+  };
+
+  const handleCostPriceInputBlur = () => {
+    const parsed = parsePriceInput(costPriceInputValue);
+    handleFormChange('costPrice', parsed);
+  };
+
+  // Sincronizar valores dos inputs quando editar um produto existente
+  useEffect(() => {
+    if (editingProduct) {
+      setPriceInputValue(editingProduct.price === 0 ? '' : editingProduct.price.toString());
+      setCostPriceInputValue(editingProduct.costPrice === 0 ? '' : editingProduct.costPrice.toString());
+    }
+  }, [editingProduct?.id]);
+
+  // Resetar imagens quando abre novo produto (sem editar)
+  useEffect(() => {
+    if (isAddDialogOpen && !editingProduct) {
+      setImageUrls([]);
+    }
+  }, [isAddDialogOpen, editingProduct]);
+
+  const handleAddImage = (base64: string) => {
+    setImageUrls(prev => [...prev, base64]);
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setImageUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = () => {
+    // Armazenar múltiplas imagens como JSON string
+    const dataToSubmit = {
+      ...formData,
+      imageUrl: imageUrls.length > 0 ? JSON.stringify(imageUrls) : ''
+    };
+
+    if (editingProduct) {
+      updateProduct(editingProduct.id, dataToSubmit);
+      setEditingProduct(null);
+    } else {
+      addProduct(dataToSubmit);
+    }
+    setFormData(initialFormData);
+    setImageUrls([]);
+    setIsAddDialogOpen(false);
+  };
+
+  const handleEdit = (product: Product) => {
+    setEditingProduct(product);
+    
+    // Tentar carregar múltiplas imagens do JSON
+    let images: string[] = [];
+    try {
+      if (product.imageUrl && product.imageUrl.startsWith('[')) {
+        images = JSON.parse(product.imageUrl);
+      } else if (product.imageUrl) {
+        images = [product.imageUrl];
+      }
+    } catch (e) {
+      // Se não for JSON válido, tratar como string única
+      images = product.imageUrl ? [product.imageUrl] : [];
+    }
+    
+    setImageUrls(images);
+    setFormData({
+      name: product.name,
+      description: product.description,
+      specifications: product.specifications,
+      category: product.category,
+      brand: product.brand,
+      model: product.model,
+      price: product.price,
+      costPrice: product.costPrice,
+      condition: product.condition,
+      status: product.status,
+      quantity: product.quantity,
+      isPublished: product.isPublished,
+      internalNotes: product.internalNotes,
+      imageUrl: product.imageUrl,
+    });
+    setIsAddDialogOpen(true);
+  };
+
+  const handleTogglePublish = (product: Product) => {
+    updateProduct(product.id, { isPublished: !product.isPublished });
+  };
+
+  const handleQuickQuantityChange = (product: Product, delta: number) => {
+    const newQuantity = Math.max(0, product.quantity + delta);
+    const newStatus = newQuantity === 0 ? 'sem_estoque' : (product.status === 'sem_estoque' ? 'disponivel' : product.status);
+    updateProduct(product.id, { quantity: newQuantity, status: newStatus as ProductStatus });
+  };
+
+  const closeDialog = () => {
+    setIsAddDialogOpen(false);
+    setEditingProduct(null);
+    setFormData(initialFormData);
+    setPriceInputValue('');
+    setCostPriceInputValue('');
+    setImageUrls([]);
+  };
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+    router.refresh();
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64String = event.target?.result as string;
+          handleAddImage(base64String);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const handleImageDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingImage(false);
+    const files = e.dataTransfer.files;
+    if (files) {
+      Array.from(files).forEach(file => {
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const base64String = event.target?.result as string;
+            handleAddImage(base64String);
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+  };
+
+  const handleClearImage = () => {
+    handleFormChange('imageUrl', '');
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -373,20 +611,41 @@ export default function AdminPage({ currentUser }: AdminPageProps) {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
-              <Dialog open={isAddDialogOpen} onOpenChange={(open) => open ? setIsAddDialogOpen(true) : closeDialog()}>
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
                   <Button className="gradient-primary text-white">
                     <Plus className="w-5 h-5 mr-2" />
                     Novo Produto
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl bg-card border-border">
+                <DialogContent className="max-w-2xl bg-card border-border" onEscapeKeyDown={(e) => e.preventDefault()} onPointerDownOutside={(e) => e.preventDefault()}>
                   <DialogHeader>
                     <DialogTitle className="text-foreground">
                       {editingProduct ? 'Editar Produto' : 'Cadastrar Novo Produto'}
                     </DialogTitle>
+                    <DialogDescription>
+                      Preencha os dados do produto e adicione fotos para cadastrar ou editar
+                    </DialogDescription>
                   </DialogHeader>
-                  <ProductForm />
+                  <ProductFormComponent
+                    formData={formData}
+                    imageUrls={imageUrls}
+                    priceInputValue={priceInputValue}
+                    costPriceInputValue={costPriceInputValue}
+                    categoryOptions={categoryOptions}
+                    brandOptions={brandOptions}
+                    isDraggingImage={isDraggingImage}
+                    handleFormChange={handleFormChange}
+                    handleAddImage={handleAddImage}
+                    handleRemoveImage={handleRemoveImage}
+                    handlePriceInputChange={handlePriceInputChange}
+                    handleCostPriceInputChange={handleCostPriceInputChange}
+                    handlePriceInputBlur={handlePriceInputBlur}
+                    handleCostPriceInputBlur={handleCostPriceInputBlur}
+                    handleImageChange={handleImageChange}
+                    handleImageDrop={handleImageDrop}
+                    setIsDraggingImage={setIsDraggingImage}
+                  />
                   <DialogFooter>
                     <DialogClose asChild>
                       <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
@@ -531,7 +790,7 @@ export default function AdminPage({ currentUser }: AdminPageProps) {
                               <div className="flex items-center gap-3">
                                 <div
                                   className="w-10 h-10 rounded-lg bg-cover bg-center shrink-0"
-                                  style={{ backgroundImage: `url(${product.imageUrl})` }}
+                                  style={{ backgroundImage: `url(${getFirstImage(product.imageUrl)})` }}
                                 />
                                 <div>
                                   <p className="font-medium text-foreground line-clamp-1">{product.name}</p>
@@ -647,7 +906,7 @@ export default function AdminPage({ currentUser }: AdminPageProps) {
                     <Card key={product.id} className="bg-card border-border overflow-hidden">
                       <div
                         className="h-32 bg-cover bg-center"
-                        style={{ backgroundImage: `url(${product.imageUrl})` }}
+                        style={{ backgroundImage: `url(${getFirstImage(product.imageUrl)})` }}
                       />
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between mb-2">

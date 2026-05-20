@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase';
 
 type MarcaInput = {
   nome?: string;
+  marca?: string;
 };
 
 // GET: lista marcas
@@ -13,7 +14,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from('marcas')
       .select('*')
-      .order('nome', { ascending: true });
+      .order('marca', { ascending: true });
 
     if (error) {
       return NextResponse.json(
@@ -35,16 +36,18 @@ export async function POST(request: NextRequest) {
     const supabase = await createSupabaseServerClient();
     const body = (await request.json()) as MarcaInput;
 
-    if (!body.nome) {
+    const marcaNome = body.marca ?? body.nome;
+
+    if (!marcaNome) {
       return NextResponse.json(
-        { sucesso: false, erro: 'Campos obrigatórios inválidos', detalhe: 'Envie nome.' },
+        { sucesso: false, erro: 'Campos obrigatórios inválidos', detalhe: 'Envie marca.' },
         { status: 400 }
       );
     }
 
     const { data, error } = await supabase
       .from('marcas')
-      .insert({ nome: body.nome })
+      .insert({ marca: marcaNome })
       .select('*')
       .single();
 

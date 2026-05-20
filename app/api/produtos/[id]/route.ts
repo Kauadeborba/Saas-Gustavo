@@ -77,7 +77,7 @@ async function resolveOrCreateBrandIdByName(name: string) {
   const { data: existing } = await supabase
     .from('marcas')
     .select('id')
-    .eq('nome', name)
+    .eq('marca', name)
     .maybeSingle();
 
   if (existing?.id) {
@@ -86,7 +86,7 @@ async function resolveOrCreateBrandIdByName(name: string) {
 
   const { data: created, error } = await supabase
     .from('marcas')
-    .insert({ nome: name })
+    .insert({ marca: name })
     .select('id')
     .single();
 
@@ -143,7 +143,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         dados: {
           ...data,
           category: categoriaResult.data?.nome ?? 'Sem categoria',
-          brand: marcaResult.data?.nome ?? 'Sem marca',
+          brand: marcaResult.data?.marca ?? 'Sem marca',
         },
       },
       { status: 200 }
@@ -176,7 +176,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           : undefined;
 
     const payload = {
-      nome: body.nome ?? body.name,
+      name: body.nome ?? body.name,
       descricao: body.descricao ?? body.description,
       especificacoes: body.especificacoes ?? body.specifications,
       categoria_id: categoriaId,
@@ -219,8 +219,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         ? supabase.from('categorias').select('nome').eq('id', data.categoria_id).maybeSingle()
         : Promise.resolve({ data: null as { nome?: string } | null }),
       data.marca_id
-        ? supabase.from('marcas').select('nome').eq('id', data.marca_id).maybeSingle()
-        : Promise.resolve({ data: null as { nome?: string } | null }),
+        ? supabase.from('marcas').select('marca').eq('id', data.marca_id).maybeSingle()
+        : Promise.resolve({ data: null as { marca?: string } | null }),
     ]);
 
     return NextResponse.json(
@@ -229,7 +229,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         dados: {
           ...data,
           category: categoriaResult.data?.nome ?? 'Sem categoria',
-          brand: marcaResult.data?.nome ?? 'Sem marca',
+          brand: marcaResult.data?.marca ?? 'Sem marca',
         },
       },
       { status: 200 }

@@ -87,20 +87,20 @@ function mapApiProductToProduct(item: ApiProduct): Product {
 
 function mapProductToApiInput(product: Partial<Omit<Product, 'id' | 'createdAt' | 'updatedAt'>>) {
   return {
-    nome: product.name,
-    descricao: product.description,
-    especificacoes: product.specifications,
+    name: product.name,
+    description: product.description,
+    specifications: product.specifications,
     category: product.category,
     brand: product.brand,
-    modelo: product.model,
-    preco: product.price,
-    preco_custo: product.costPrice,
-    condicao: product.condition,
+    model: product.model,
+    price: product.price,
+    costPrice: product.costPrice,
+    condition: product.condition,
     status: product.status,
-    quantidade: product.quantity,
-    publicado: product.isPublished,
-    observacoes_internas: product.internalNotes,
-    imagem_url: product.imageUrl,
+    quantity: product.quantity,
+    isPublished: product.isPublished,
+    internalNotes: product.internalNotes,
+    imageUrl: product.imageUrl,
   };
 }
 

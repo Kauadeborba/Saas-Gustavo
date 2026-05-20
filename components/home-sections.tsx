@@ -85,7 +85,7 @@ export function BenefitsSection() {
     {
       icon: ShieldCheck,
       title: 'Garantia',
-      description: 'Todos os produtos com garantia de funcionamento',
+      description: 'Todos os produtos possuem garantia de 30 dias, trazendo mais segurança e confiança para sua compra.',
     },
     {
       icon: Truck,

@@ -44,56 +44,38 @@ type ProdutoInput = {
   imageUrl?: string;
 };
 
-async function resolveOrCreateCategoryIdByName(name: string) {
+async function resolveCategoryIdByName(name: string) {
   const supabase = await createSupabaseServerClient();
 
-  const { data: existing } = await supabase
+  const { data: existing, error } = await supabase
     .from('categorias')
     .select('id')
     .eq('nome', name)
     .maybeSingle();
 
-  if (existing?.id) {
-    return existing.id as string;
-  }
-
-  const { data: created, error } = await supabase
-    .from('categorias')
-    .insert({ nome: name })
-    .select('id')
-    .single();
-
   if (error) {
-    throw new Error(`Falha ao criar categoria: ${error.message}`);
+    console.warn(`Aviso ao buscar categoria: ${error.message}`);
+    return null;
   }
 
-  return created.id as string;
+  return existing?.id as string | null;
 }
 
-async function resolveOrCreateBrandIdByName(name: string) {
+async function resolveBrandIdByName(name: string) {
   const supabase = await createSupabaseServerClient();
 
-  const { data: existing } = await supabase
+  const { data: existing, error } = await supabase
     .from('marcas')
     .select('id')
-    .eq('nome', name)
+    .eq('marca', name)
     .maybeSingle();
 
-  if (existing?.id) {
-    return existing.id as string;
-  }
-
-  const { data: created, error } = await supabase
-    .from('marcas')
-    .insert({ nome: name })
-    .select('id')
-    .single();
-
   if (error) {
-    throw new Error(`Falha ao criar marca: ${error.message}`);
+    console.warn(`Aviso ao buscar marca: ${error.message}`);
+    return null;
   }
 
-  return created.id as string;
+  return existing?.id as string | null;
 }
 
 // GET: Lista todos os produtos
@@ -123,12 +105,12 @@ export async function GET() {
         ? supabase.from('categorias').select('id, nome').in('id', categoryIds)
         : Promise.resolve({ data: [] as Array<{ id: string; nome: string }> }),
       brandIds.length
-        ? supabase.from('marcas').select('id, nome').in('id', brandIds)
-        : Promise.resolve({ data: [] as Array<{ id: string; nome: string }> }),
+        ? supabase.from('marcas').select('id, marca').in('id', brandIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; marca: string }> }),
     ]);
 
     const categoriasMap = new Map((categorias ?? []).map((c) => [c.id, c.nome]));
-    const marcasMap = new Map((marcas ?? []).map((m) => [m.id, m.nome]));
+    const marcasMap = new Map((marcas ?? []).map((m) => [m.id, m.marca]));
 
     const dadosFormatados = (data ?? []).map((p) => ({
       ...p,
@@ -167,11 +149,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Campos com fallback para defaults amigáveis.
-    const categoriaId = body.categoria_id ?? (categoriaNome ? await resolveOrCreateCategoryIdByName(categoriaNome) : null);
-    const marcaId = body.marca_id ?? (marcaNome ? await resolveOrCreateBrandIdByName(marcaNome) : null);
+    const categoriaId = body.categoria_id ?? (categoriaNome ? await resolveCategoryIdByName(categoriaNome) : null);
+    const marcaId = body.marca_id ?? (marcaNome ? await resolveBrandIdByName(marcaNome) : null);
 
     const novoProduto = {
-      nome,
+      name: nome,
       descricao: body.descricao ?? body.description ?? '',
       especificacoes: body.especificacoes ?? body.specifications ?? '',
       categoria_id: categoriaId,

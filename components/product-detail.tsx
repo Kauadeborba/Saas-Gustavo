@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -11,7 +11,30 @@ import { formatPrice, getConditionLabel, getStatusInfo } from '@/lib/products';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, MessageCircle, ShieldCheck, Truck, Package, Tag } from 'lucide-react';
+import { ArrowLeft, MessageCircle, ShieldCheck, Truck, Package, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
+
+// Extrai todas as imagens válidas (pode ser JSON array ou string única)
+function getAllImages(imageUrl: string): string[] {
+  if (!imageUrl) return ['/placeholder.png'];
+  
+  try {
+    // Tenta parsear como JSON array
+    if (imageUrl.startsWith('[')) {
+      const images = JSON.parse(imageUrl) as string[];
+      return images.length > 0 ? images : ['/placeholder.png'];
+    }
+  } catch (e) {
+    // Se não for JSON válido, usa como string única
+  }
+  
+  return [imageUrl];
+}
+
+// Extrai a primeira imagem válida (pode ser JSON array ou string única)
+function getFirstImage(imageUrl: string): string {
+  const images = getAllImages(imageUrl);
+  return images[0] || '/placeholder.png';
+}
 
 interface ProductPageProps {
   params: Promise<{ id: string }>;
@@ -21,10 +44,22 @@ export default function ProductPage({ params }: ProductPageProps) {
   const { id } = use(params);
   const { getProductById } = useStore();
   const product = getProductById(id);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   if (!product || !product.isPublished) {
     notFound();
   }
+
+  const images = getAllImages(product.imageUrl);
+  const currentImage = images[currentImageIndex] || '/placeholder.png';
+
+  const handlePreviousImage = () => {
+    setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+  };
+
+  const handleNextImage = () => {
+    setCurrentImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+  };
 
   const statusInfo = getStatusInfo(product.status);
   const isAvailable = product.status === 'disponivel' && product.quantity > 0;
@@ -49,17 +84,56 @@ export default function ProductPage({ params }: ProductPageProps) {
           </Link>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-            {/* Image */}
+            {/* Image Carousel */}
             <div className="relative">
-              <div className="relative aspect-square rounded-2xl overflow-hidden bg-card border border-border">
+              <div className="relative aspect-square rounded-2xl overflow-hidden bg-card border border-border group">
                 <Image
-                  src={product.imageUrl}
+                  src={currentImage}
                   alt={product.name}
                   fill
-                  className="object-cover"
+                  className="object-cover transition-all duration-300"
                   priority
                   sizes="(max-width: 1024px) 100vw, 50vw"
                 />
+                
+                {/* Navigation Buttons */}
+                {images.length > 1 && (
+                  <>
+                    <button
+                      onClick={handlePreviousImage}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background text-foreground rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      aria-label="Imagem anterior"
+                    >
+                      <ChevronLeft className="w-6 h-6" />
+                    </button>
+                    <button
+                      onClick={handleNextImage}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background text-foreground rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      aria-label="Próxima imagem"
+                    >
+                      <ChevronRight className="w-6 h-6" />
+                    </button>
+
+                    {/* Image Indicators */}
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+                      {images.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setCurrentImageIndex(index)}
+                          className={`w-2 h-2 rounded-full transition-all ${
+                            index === currentImageIndex ? 'bg-primary w-6' : 'bg-white/50 hover:bg-white/75'
+                          }`}
+                          aria-label={`Imagem ${index + 1}`}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Image Counter */}
+                    <div className="absolute top-4 right-4 bg-background/80 text-foreground px-3 py-1 rounded-full text-sm backdrop-blur-sm">
+                      {currentImageIndex + 1} / {images.length}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Floating badges */}

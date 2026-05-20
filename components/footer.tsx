@@ -54,7 +54,6 @@ export function Footer() {
                 </svg>
                 (48) 98428-7544
               </a>
-              <p>teste@technote.com.br</p>
               <p>Araranguá, SC</p>
             </div>
           </div>
