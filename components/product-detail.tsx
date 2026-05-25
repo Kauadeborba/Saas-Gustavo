@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -45,6 +45,7 @@ export default function ProductPage({ params }: ProductPageProps) {
   const { getProductById } = useStore();
   const product = getProductById(id);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const touchStartX = useRef<number | null>(null);
 
   if (!product || !product.isPublished) {
     notFound();
@@ -86,7 +87,16 @@ export default function ProductPage({ params }: ProductPageProps) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
             {/* Image Carousel */}
             <div className="relative">
-              <div className="relative aspect-square rounded-2xl overflow-hidden bg-card border border-border group">
+              <div
+                className="relative aspect-square rounded-2xl overflow-hidden bg-card border border-border group"
+                onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+                onTouchEnd={(e) => {
+                  if (touchStartX.current === null || images.length <= 1) return;
+                  const diff = touchStartX.current - e.changedTouches[0].clientX;
+                  if (Math.abs(diff) > 40) diff > 0 ? handleNextImage() : handlePreviousImage();
+                  touchStartX.current = null;
+                }}
+              >
                 <Image
                   src={currentImage}
                   alt={product.name}
@@ -101,14 +111,14 @@ export default function ProductPage({ params }: ProductPageProps) {
                   <>
                     <button
                       onClick={handlePreviousImage}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background text-foreground rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      className="absolute left-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background text-foreground rounded-full p-2 opacity-0 group-hover:opacity-100 sm:opacity-0 max-sm:opacity-100 transition-opacity z-10"
                       aria-label="Imagem anterior"
                     >
                       <ChevronLeft className="w-6 h-6" />
                     </button>
                     <button
                       onClick={handleNextImage}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background text-foreground rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background text-foreground rounded-full p-2 opacity-0 group-hover:opacity-100 sm:opacity-0 max-sm:opacity-100 transition-opacity z-10"
                       aria-label="Próxima imagem"
                     >
                       <ChevronRight className="w-6 h-6" />
