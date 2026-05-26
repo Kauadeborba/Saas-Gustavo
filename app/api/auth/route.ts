@@ -12,15 +12,7 @@ import { logAction } from '@/lib/audit-log';
 // POST: Login
 export async function POST(request: NextRequest) {
   try {
-    // Use a service role key (admin) que ignora RLS
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!serviceRoleKey) {
-      throw new Error('SUPABASE_SERVICE_ROLE_KEY não configurada');
-    }
-
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const supabase = await createSupabaseServerClient();
 
     const { email, senha } = (await request.json()) as { email?: string; senha?: string };
 
