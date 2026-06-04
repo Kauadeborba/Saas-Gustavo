@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* TechNote Premium Dark Theme */
+  /* GR Tech Premium Dark Theme */
   --background: oklch(0.11 0.01 260);
   --foreground: oklch(0.97 0 0);
   --card: oklch(0.14 0.01 260);

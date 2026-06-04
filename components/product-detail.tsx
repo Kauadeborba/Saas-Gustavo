@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useRef } from 'react';
+import { use, useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -10,8 +10,9 @@ import { useStore } from '@/lib/store-context';
 import { formatPrice, getConditionLabel, getStatusInfo } from '@/lib/products';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, MessageCircle, ShieldCheck, Truck, Package, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, MessageCircle, ShieldCheck, Truck, Package, Tag, ChevronLeft, ChevronRight, Percent, TicketPercent, X, Check } from 'lucide-react';
 
 // Extrai todas as imagens válidas (pode ser JSON array ou string única)
 function getAllImages(imageUrl: string): string[] {
@@ -46,6 +47,81 @@ export default function ProductPage({ params }: ProductPageProps) {
   const product = getProductById(id);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
+
+  // Coupon state
+  const [availableCupons, setAvailableCupons] = useState<Array<{ id: string; codigo: string; percentual_desconto: number; descricao: string | null }>>([]);
+  const [cupomInput, setCupomInput] = useState('');
+  const [appliedCupom, setAppliedCupom] = useState<{ codigo: string; percentual_desconto: number } | null>(null);
+  const [cupomError, setCupomError] = useState('');
+  const [cupomLoading, setCupomLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchCupons = async () => {
+      try {
+        const res = await fetch('/api/cupons', { cache: 'no-store' });
+        const data = (await res.json()) as {
+          sucesso: boolean;
+          dados?: Array<{ id: string; codigo: string; percentual_desconto: number; descricao: string | null; ativo: boolean; data_inicio: string | null; data_fim: string | null }>;
+        };
+        if (data.sucesso && data.dados) {
+          const now = new Date();
+          const active = data.dados.filter((c) => {
+            if (!c.ativo) return false;
+            if (c.data_inicio && new Date(c.data_inicio) > now) return false;
+            if (c.data_fim) {
+              const fim = new Date(c.data_fim);
+              fim.setHours(23, 59, 59, 999);
+              if (now > fim) return false;
+            }
+            return true;
+          });
+          setAvailableCupons(active);
+        }
+      } catch {
+        // silent
+      }
+    };
+    void fetchCupons();
+  }, []);
+
+  const handleApplyCupom = async () => {
+    const codigo = cupomInput.trim();
+    if (!codigo) return;
+    setCupomLoading(true);
+    setCupomError('');
+    try {
+      const res = await fetch('/api/cupons/validar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo }),
+      });
+      const data = (await res.json()) as {
+        sucesso: boolean;
+        erro?: string;
+        dados?: { codigo: string; percentual_desconto: number };
+      };
+      if (data.sucesso && data.dados) {
+        setAppliedCupom({ codigo: data.dados.codigo, percentual_desconto: data.dados.percentual_desconto });
+        setCupomInput('');
+      } else {
+        setCupomError(data.erro ?? 'Cupom inválido.');
+      }
+    } catch {
+      setCupomError('Erro de comunicação. Tente novamente.');
+    } finally {
+      setCupomLoading(false);
+    }
+  };
+
+  const handleRemoveCupom = () => {
+    setAppliedCupom(null);
+    setCupomError('');
+    setCupomInput('');
+  };
+
+  const discountedPrice = appliedCupom && product
+    ? product.price * (1 - appliedCupom.percentual_desconto / 100)
+    : null;
 
   if (!product || !product.isPublished) {
     notFound();
@@ -176,12 +252,93 @@ export default function ProductPage({ params }: ProductPageProps) {
 
               {/* Price */}
               <div className="mb-6">
-                <p className="text-4xl font-bold text-gradient">{formatPrice(product.price)}</p>
+                {appliedCupom ? (
+                  <div className="space-y-1">
+                    <p className="text-xl text-muted-foreground line-through">{formatPrice(product.price)}</p>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <p className="text-4xl font-bold text-green-400">{formatPrice(discountedPrice!)}</p>
+                      <Badge className="bg-green-500/20 text-green-400 border-0 text-sm px-3 py-1">
+                        <Percent className="w-3 h-3 mr-1" />
+                        {appliedCupom.percentual_desconto}% OFF
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Economia de {formatPrice(product.price - discountedPrice!)}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-4xl font-bold text-gradient">{formatPrice(product.price)}</p>
+                )}
                 {product.quantity > 0 && (
                   <p className="text-muted-foreground mt-1 flex items-center gap-2">
                     <Package className="w-4 h-4" />
                     {product.quantity} {product.quantity === 1 ? 'unidade disponível' : 'unidades disponíveis'}
                   </p>
+                )}
+              </div>
+
+              {/* Coupon Section */}
+              <div className="mb-6 p-4 rounded-xl border border-border bg-card/50">
+                <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <TicketPercent className="w-4 h-4 text-primary" />
+                  Cupom de Desconto
+                </h3>
+
+                {appliedCupom ? (
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-green-500/10 border border-green-500/30">
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-green-400 shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-green-400 font-mono">{appliedCupom.codigo}</p>
+                        <p className="text-xs text-muted-foreground">{appliedCupom.percentual_desconto}% de desconto aplicado</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={handleRemoveCupom} className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive">
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Available coupons quick-select */}
+                    {availableCupons.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {availableCupons.map((cupom) => (
+                          <button
+                            key={cupom.id}
+                            onClick={() => setCupomInput(cupom.codigo)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-mono font-medium text-foreground hover:bg-primary/20 transition-colors"
+                            title={cupom.descricao ?? undefined}
+                          >
+                            <Tag className="w-3 h-3 text-primary" />
+                            {cupom.codigo}
+                            <span className="text-primary font-normal">-{cupom.percentual_desconto}%</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Digite ou selecione um cupom..."
+                        value={cupomInput}
+                        onChange={(e) => {
+                          setCupomInput(e.target.value.toUpperCase());
+                          setCupomError('');
+                        }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') void handleApplyCupom(); }}
+                        className="bg-input border-border font-mono uppercase text-sm"
+                      />
+                      <Button
+                        onClick={() => void handleApplyCupom()}
+                        disabled={cupomLoading || !cupomInput.trim()}
+                        className="shrink-0 gradient-primary text-white"
+                      >
+                        {cupomLoading ? '...' : 'Aplicar'}
+                      </Button>
+                    </div>
+                    {cupomError && (
+                      <p className="mt-2 text-sm text-destructive bg-destructive/10 px-3 py-1.5 rounded-md">{cupomError}</p>
+                    )}
+                  </>
                 )}
               </div>
 

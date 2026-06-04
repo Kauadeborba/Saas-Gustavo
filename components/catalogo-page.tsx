@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
-import { Search, SlidersHorizontal, X, Package } from 'lucide-react';
+import { Search, SlidersHorizontal, X, Package, Tag, Percent } from 'lucide-react';
 import { formatPrice } from '@/lib/products';
 
 function CatalogoContent() {
@@ -30,6 +30,7 @@ function CatalogoContent() {
   const [status, setStatus] = useState<ProductStatus | 'todos'>('disponivel');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [activeCupons, setActiveCupons] = useState<Array<{ id: string; codigo: string; percentual_desconto: number; descricao: string | null }>>([]);
 
   // Initialize category from URL
   useEffect(() => {
@@ -63,6 +64,36 @@ function CatalogoContent() {
     };
 
     void loadMetadata();
+  }, []);
+
+  // Fetch active cupons for the compact strip
+  useEffect(() => {
+    const fetchCupons = async () => {
+      try {
+        const res = await fetch('/api/cupons', { cache: 'no-store' });
+        const data = (await res.json()) as {
+          sucesso: boolean;
+          dados?: Array<{ id: string; codigo: string; percentual_desconto: number; descricao: string | null; ativo: boolean; data_inicio: string | null; data_fim: string | null }>;
+        };
+        if (data.sucesso && data.dados) {
+          const now = new Date();
+          const active = data.dados.filter((c) => {
+            if (!c.ativo) return false;
+            if (c.data_inicio && new Date(c.data_inicio) > now) return false;
+            if (c.data_fim) {
+              const fim = new Date(c.data_fim);
+              fim.setHours(23, 59, 59, 999);
+              if (now > fim) return false;
+            }
+            return true;
+          });
+          setActiveCupons(active);
+        }
+      } catch {
+        // silent
+      }
+    };
+    void fetchCupons();
   }, []);
 
   const products = getPublishedProducts();
@@ -198,7 +229,7 @@ function CatalogoContent() {
       <main className="flex-grow pt-24 pb-12">
         <div className="container mx-auto px-4">
           {/* Page Header */}
-          <div className="mb-8">
+          <div className="mb-6">
             <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
               Nosso <span className="text-gradient">Catálogo</span>
             </h1>
@@ -206,6 +237,31 @@ function CatalogoContent() {
               {filteredProducts.length} {filteredProducts.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
             </p>
           </div>
+
+          {/* Active Cupons Strip */}
+          {activeCupons.length > 0 && (
+            <div className="mb-8 overflow-x-auto">
+              <div className="flex items-center gap-2 pb-1" style={{ minWidth: 'max-content' }}>
+                <span className="text-xs text-muted-foreground font-medium whitespace-nowrap flex items-center gap-1">
+                  <Tag className="w-3 h-3" />
+                  Cupons ativos:
+                </span>
+                {activeCupons.map((cupom) => (
+                  <div
+                    key={cupom.id}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 whitespace-nowrap"
+                    title={cupom.descricao ?? undefined}
+                  >
+                    <span className="font-mono text-sm font-semibold text-foreground">{cupom.codigo}</span>
+                    <Badge className="bg-primary/20 text-primary border-0 text-xs px-2 py-0">
+                      <Percent className="w-3 h-3 mr-0.5" />
+                      {cupom.percentual_desconto}%
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col lg:flex-row gap-8">
             {/* Desktop Filters */}

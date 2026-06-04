@@ -62,7 +62,7 @@ export function LoginPage() {
                 </div>
                 <CardTitle className="text-2xl text-foreground">Acesso Administrativo</CardTitle>
                 <CardDescription>
-                  Entre com seu usuário cadastrado para acessar o painel da TechNote.
+                  Entre com seu usuário cadastrado para acessar o painel da GR Tech.
                 </CardDescription>
               </CardHeader>
 

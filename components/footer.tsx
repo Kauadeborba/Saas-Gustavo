@@ -13,7 +13,7 @@ export function Footer() {
                 <Cpu className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-foreground">TechNote</h3>
+                <h3 className="text-lg font-bold text-foreground">GR Tech</h3>
                 <p className="text-xs text-muted-foreground">Peças e Notebooks</p>
               </div>
             </div>
@@ -61,7 +61,7 @@ export function Footer() {
 
         <div className="border-t border-border mt-8 pt-8 text-center">
           <p className="text-muted-foreground text-sm">
-            © {new Date().getFullYear()} TechNote - Peças e Notebooks. Todos os direitos reservados.
+            © {new Date().getFullYear()} GR Tech - Peças e Notebooks. Todos os direitos reservados.
           </p>
         </div>
       </div>

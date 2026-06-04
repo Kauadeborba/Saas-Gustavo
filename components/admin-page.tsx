@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Pencil, Trash2, Eye, EyeOff, Search, Package, AlertTriangle, MinusCircle, PlusCircle, LogOut, Upload, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, EyeOff, Search, Package, AlertTriangle, MinusCircle, PlusCircle, LogOut, Upload, X, Tag, Percent, Calendar, TicketPercent, CheckCircle, XCircle } from 'lucide-react';
 
 // Funções helper para conversão de preços
 const parsePriceInput = (value: string): number => {
@@ -364,9 +364,520 @@ const initialFormData: FormData = {
   imageUrl: '',
 };
 
+// ─── Cupons types ─────────────────────────────────────────────────────────────
+interface Parceiro {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Cupom {
+  id: string;
+  codigo: string;
+  descricao: string | null;
+  percentual_desconto: number;
+  ativo: boolean;
+  data_inicio: string | null;
+  data_fim: string | null;
+  parceiro_id: string | null;
+  parceiros: { id: string; nome: string } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+type CupomFormData = {
+  codigo: string;
+  descricao: string;
+  percentual_desconto: number;
+  ativo: boolean;
+  data_inicio: string;
+  data_fim: string;
+  parceiro_nome: string;
+};
+
+const initialCupomForm: CupomFormData = {
+  codigo: '',
+  descricao: '',
+  percentual_desconto: 0,
+  ativo: true,
+  data_inicio: '',
+  data_fim: '',
+  parceiro_nome: '',
+};
+
+// ─── CuponsManager component ──────────────────────────────────────────────────
+function CuponsManager() {
+  const [cupons, setCupons] = useState<Cupom[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingCupom, setEditingCupom] = useState<Cupom | null>(null);
+  const [formData, setFormData] = useState<CupomFormData>(initialCupomForm);
+  const [percentualStr, setPercentualStr] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [searchCupom, setSearchCupom] = useState('');
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const cuponsRes = await fetch('/api/cupons', { cache: 'no-store' });
+      const cuponsData = (await cuponsRes.json()) as { sucesso: boolean; dados?: Cupom[] };
+      if (cuponsData.sucesso) setCupons(cuponsData.dados ?? []);
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadData();
+  }, []);
+
+  const openCreate = () => {
+    setEditingCupom(null);
+    setFormData(initialCupomForm);
+    setPercentualStr('');
+    setFormError('');
+    setIsFormOpen(true);
+  };
+
+  const openEdit = (cupom: Cupom) => {
+    setEditingCupom(cupom);
+    setFormData({
+      codigo: cupom.codigo,
+      descricao: cupom.descricao ?? '',
+      percentual_desconto: cupom.percentual_desconto,
+      ativo: cupom.ativo,
+      data_inicio: cupom.data_inicio ? cupom.data_inicio.slice(0, 10) : '',
+      data_fim: cupom.data_fim ? cupom.data_fim.slice(0, 10) : '',
+      parceiro_nome: cupom.parceiros?.nome ?? '',
+    });
+    setPercentualStr(cupom.percentual_desconto.toString());
+    setFormError('');
+    setIsFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setIsFormOpen(false);
+    setEditingCupom(null);
+    setFormData(initialCupomForm);
+    setPercentualStr('');
+    setFormError('');
+  };
+
+  const handleSave = async () => {
+    if (!formData.codigo.trim()) {
+      setFormError('O código do cupom é obrigatório.');
+      return;
+    }
+    const percentual = parseInt(percentualStr, 10);
+    if (isNaN(percentual) || percentual < 1 || percentual > 100) {
+      setFormError('O percentual de desconto deve ser entre 1 e 100.');
+      return;
+    }
+    setSaving(true);
+    setFormError('');
+    try {
+      // Resolve parceiro name to ID (find existing or create new)
+      let parceiroId: string | null = null;
+      const nomeParceiro = formData.parceiro_nome.trim();
+      if (nomeParceiro) {
+        const parcRes = await fetch('/api/parceiros', { cache: 'no-store' });
+        const parcData = (await parcRes.json()) as { sucesso: boolean; dados?: Parceiro[] };
+        const existing = (parcData.dados ?? []).find(
+          (p) => p.nome.toLowerCase() === nomeParceiro.toLowerCase()
+        );
+        if (existing) {
+          parceiroId = existing.id;
+        } else {
+          const createRes = await fetch('/api/parceiros', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome: nomeParceiro, ativo: true }),
+          });
+          const createData = (await createRes.json()) as { sucesso: boolean; dados?: { id: string } };
+          if (createData.sucesso && createData.dados) {
+            parceiroId = createData.dados.id;
+          }
+        }
+      }
+
+      const body = {
+        codigo: formData.codigo.toUpperCase().trim(),
+        descricao: formData.descricao || null,
+        percentual_desconto: percentual,
+        ativo: formData.ativo,
+        data_inicio: formData.data_inicio || null,
+        data_fim: formData.data_fim || null,
+        parceiro_id: parceiroId,
+      };
+
+      const url = editingCupom ? `/api/cupons/${editingCupom.id}` : '/api/cupons';
+      const method = editingCupom ? 'PATCH' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const result = (await res.json()) as { sucesso: boolean; erro?: string };
+
+      if (!result.sucesso) {
+        setFormError(result.erro ?? 'Erro ao salvar cupom.');
+        return;
+      }
+
+      closeForm();
+      void loadData();
+    } catch {
+      setFormError('Erro de comunicação com o servidor.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleAtivo = async (cupom: Cupom) => {
+    try {
+      await fetch(`/api/cupons/${cupom.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ativo: !cupom.ativo }),
+      });
+      void loadData();
+    } catch {
+      // silent
+    }
+  };
+
+  const handleDelete = async (cupom: Cupom) => {
+    try {
+      await fetch(`/api/cupons/${cupom.id}`, { method: 'DELETE' });
+      void loadData();
+    } catch {
+      // silent
+    }
+  };
+
+  const filteredCupons = cupons.filter(
+    (c) =>
+      searchCupom === '' ||
+      c.codigo.toLowerCase().includes(searchCupom.toLowerCase()) ||
+      (c.descricao ?? '').toLowerCase().includes(searchCupom.toLowerCase())
+  );
+
+  const activeCupons = cupons.filter((c) => c.ativo).length;
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleDateString('pt-BR');
+  };
+
+  return (
+    <div>
+      {/* Summary */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+        <Card className="bg-card border-border">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <TicketPercent className="w-4 h-4" />
+              Total de Cupons
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-2xl font-bold text-foreground">{cupons.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <CheckCircle className="w-4 h-4" />
+              Ativos
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-2xl font-bold text-green-500">{activeCupons}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border col-span-2 md:col-span-1">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <XCircle className="w-4 h-4" />
+              Inativos
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-2xl font-bold text-muted-foreground">{cupons.length - activeCupons}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Actions bar */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Buscar por código ou descrição..."
+            value={searchCupom}
+            onChange={(e) => setSearchCupom(e.target.value)}
+            className="pl-10 bg-input border-border"
+          />
+        </div>
+        <Button onClick={openCreate} className="gradient-primary text-white shrink-0">
+          <Plus className="w-4 h-4 mr-2" />
+          Novo Cupom
+        </Button>
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div className="py-16 text-center text-muted-foreground">Carregando cupons...</div>
+      ) : (
+        <div className="rounded-xl border border-border overflow-hidden bg-card">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-muted-foreground">Código</TableHead>
+                  <TableHead className="text-muted-foreground">Desconto</TableHead>
+                  <TableHead className="text-muted-foreground hidden md:table-cell">Descrição</TableHead>
+                  <TableHead className="text-muted-foreground hidden md:table-cell">Validade</TableHead>
+                  <TableHead className="text-muted-foreground hidden lg:table-cell">Parceiro</TableHead>
+                  <TableHead className="text-muted-foreground text-center">Status</TableHead>
+                  <TableHead className="text-muted-foreground text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredCupons.map((cupom) => (
+                  <TableRow key={cupom.id} className="border-border hover:bg-muted/30">
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-primary shrink-0" />
+                        <span className="font-mono font-semibold text-foreground">{cupom.codigo}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className="bg-primary/20 text-primary border-0">
+                        <Percent className="w-3 h-3 mr-1" />
+                        {cupom.percentual_desconto}%
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground hidden md:table-cell max-w-[180px] truncate">
+                      {cupom.descricao ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground hidden md:table-cell">
+                      <div className="flex items-center gap-1 text-xs">
+                        <Calendar className="w-3 h-3 shrink-0" />
+                        {formatDate(cupom.data_inicio)} → {formatDate(cupom.data_fim)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground hidden lg:table-cell">
+                      {cupom.parceiros?.nome ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <button
+                        onClick={() => void handleToggleAtivo(cupom)}
+                        className="focus:outline-none"
+                        title={cupom.ativo ? 'Desativar cupom' : 'Ativar cupom'}
+                      >
+                        <Badge
+                          className={`cursor-pointer border-0 ${cupom.ativo ? 'bg-green-500/20 text-green-400' : 'bg-muted text-muted-foreground'}`}
+                        >
+                          {cupom.ativo ? 'Ativo' : 'Inativo'}
+                        </Badge>
+                      </button>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEdit(cupom)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent className="bg-card border-border">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle className="text-foreground">Excluir Cupom</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja excluir o cupom &quot;{cupom.codigo}&quot;? Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel className="border-border">Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => void handleDelete(cupom)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredCupons.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                      <TicketPercent className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                      {searchCupom ? 'Nenhum cupom encontrado para esta busca' : 'Nenhum cupom cadastrado'}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) closeForm(); }}>
+        <DialogContent
+          className="max-w-lg bg-card border-border"
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-foreground">
+              {editingCupom ? 'Editar Cupom' : 'Novo Cupom'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingCupom ? 'Altere os dados do cupom existente.' : 'Preencha os dados para criar um novo cupom.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="cupom-codigo">Código *</Label>
+                <Input
+                  id="cupom-codigo"
+                  value={formData.codigo}
+                  onChange={(e) => setFormData((p) => ({ ...p, codigo: e.target.value.toUpperCase() }))}
+                  placeholder="Ex: DESCONTO10"
+                  className="bg-input border-border font-mono uppercase"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cupom-percentual">Desconto (%) *</Label>
+                <Input
+                  id="cupom-percentual"
+                  type="text"
+                  inputMode="numeric"
+                  value={percentualStr}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^0-9]/g, '');
+                    setPercentualStr(raw);
+                  }}
+                  placeholder="Ex: 15"
+                  className="bg-input border-border"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cupom-descricao">Descrição</Label>
+              <Input
+                id="cupom-descricao"
+                value={formData.descricao}
+                onChange={(e) => setFormData((p) => ({ ...p, descricao: e.target.value }))}
+                placeholder="Ex: Desconto especial para parceiros"
+                className="bg-input border-border"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="cupom-inicio">Data de Início</Label>
+                <Input
+                  id="cupom-inicio"
+                  type="text"
+                  value={formData.data_inicio}
+                  onChange={(e) => setFormData((p) => ({ ...p, data_inicio: e.target.value }))}
+                  placeholder="AAAA-MM-DD"
+                  className="bg-input border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cupom-fim">Data de Término</Label>
+                <Input
+                  id="cupom-fim"
+                  type="text"
+                  value={formData.data_fim}
+                  onChange={(e) => setFormData((p) => ({ ...p, data_fim: e.target.value }))}
+                  placeholder="AAAA-MM-DD"
+                  className="bg-input border-border"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cupom-parceiro">Parceiro (opcional)</Label>
+              <Input
+                id="cupom-parceiro"
+                type="text"
+                value={formData.parceiro_nome}
+                onChange={(e) => setFormData((p) => ({ ...p, parceiro_nome: e.target.value }))}
+                placeholder="Ex: Dell, Lenovo, Promoção Black Friday..."
+                className="bg-input border-border"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Switch
+                id="cupom-ativo"
+                checked={formData.ativo}
+                onCheckedChange={(v) => setFormData((p) => ({ ...p, ativo: v }))}
+              />
+              <Label htmlFor="cupom-ativo">Cupom ativo</Label>
+            </div>
+
+            {formError && (
+              <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{formError}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" onClick={closeForm} disabled={saving}>
+                Cancelar
+              </Button>
+            </DialogClose>
+            <Button
+              onClick={() => void handleSave()}
+              className="gradient-primary text-white"
+              disabled={saving || !formData.codigo.trim()}
+            >
+              {saving ? 'Salvando...' : editingCupom ? 'Salvar Alterações' : 'Criar Cupom'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function AdminPage({ currentUser }: AdminPageProps) {
   const router = useRouter();
   const { products, addProduct, updateProduct, deleteProduct, getStockSummary } = useStore();
+  const [activeSection, setActiveSection] = useState<'produtos' | 'cupons'>('produtos');
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const [search, setSearch] = useState('');
@@ -611,51 +1122,53 @@ export default function AdminPage({ currentUser }: AdminPageProps) {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gradient-primary text-white">
-                    <Plus className="w-5 h-5 mr-2" />
-                    Novo Produto
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl bg-card border-border" onEscapeKeyDown={(e) => e.preventDefault()} onPointerDownOutside={(e) => e.preventDefault()}>
-                  <DialogHeader>
-                    <DialogTitle className="text-foreground">
-                      {editingProduct ? 'Editar Produto' : 'Cadastrar Novo Produto'}
-                    </DialogTitle>
-                    <DialogDescription>
-                      Preencha os dados do produto e adicione fotos para cadastrar ou editar
-                    </DialogDescription>
-                  </DialogHeader>
-                  <ProductFormComponent
-                    formData={formData}
-                    imageUrls={imageUrls}
-                    priceInputValue={priceInputValue}
-                    costPriceInputValue={costPriceInputValue}
-                    categoryOptions={categoryOptions}
-                    brandOptions={brandOptions}
-                    isDraggingImage={isDraggingImage}
-                    handleFormChange={handleFormChange}
-                    handleAddImage={handleAddImage}
-                    handleRemoveImage={handleRemoveImage}
-                    handlePriceInputChange={handlePriceInputChange}
-                    handleCostPriceInputChange={handleCostPriceInputChange}
-                    handlePriceInputBlur={handlePriceInputBlur}
-                    handleCostPriceInputBlur={handleCostPriceInputBlur}
-                    handleImageChange={handleImageChange}
-                    handleImageDrop={handleImageDrop}
-                    setIsDraggingImage={setIsDraggingImage}
-                  />
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
-                    </DialogClose>
-                    <Button onClick={handleSubmit} className="gradient-primary text-white" disabled={!formData.name || formData.price <= 0}>
-                      {editingProduct ? 'Salvar Alterações' : 'Cadastrar Produto'}
+              {activeSection === 'produtos' && (
+                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gradient-primary text-white">
+                      <Plus className="w-5 h-5 mr-2" />
+                      Novo Produto
                     </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl bg-card border-border" onEscapeKeyDown={(e) => e.preventDefault()} onPointerDownOutside={(e) => e.preventDefault()}>
+                    <DialogHeader>
+                      <DialogTitle className="text-foreground">
+                        {editingProduct ? 'Editar Produto' : 'Cadastrar Novo Produto'}
+                      </DialogTitle>
+                      <DialogDescription>
+                        Preencha os dados do produto e adicione fotos para cadastrar ou editar
+                      </DialogDescription>
+                    </DialogHeader>
+                    <ProductFormComponent
+                      formData={formData}
+                      imageUrls={imageUrls}
+                      priceInputValue={priceInputValue}
+                      costPriceInputValue={costPriceInputValue}
+                      categoryOptions={categoryOptions}
+                      brandOptions={brandOptions}
+                      isDraggingImage={isDraggingImage}
+                      handleFormChange={handleFormChange}
+                      handleAddImage={handleAddImage}
+                      handleRemoveImage={handleRemoveImage}
+                      handlePriceInputChange={handlePriceInputChange}
+                      handleCostPriceInputChange={handleCostPriceInputChange}
+                      handlePriceInputBlur={handlePriceInputBlur}
+                      handleCostPriceInputBlur={handleCostPriceInputBlur}
+                      handleImageChange={handleImageChange}
+                      handleImageDrop={handleImageDrop}
+                      setIsDraggingImage={setIsDraggingImage}
+                    />
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
+                      </DialogClose>
+                      <Button onClick={handleSubmit} className="gradient-primary text-white" disabled={!formData.name || formData.price <= 0}>
+                        {editingProduct ? 'Salvar Alterações' : 'Cadastrar Produto'}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
 
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="w-4 h-4 mr-2" />
@@ -663,6 +1176,38 @@ export default function AdminPage({ currentUser }: AdminPageProps) {
               </Button>
             </div>
           </div>
+
+          {/* Section Navigation */}
+          <div className="flex gap-2 mb-8 border-b border-border pb-4">
+            <button
+              onClick={() => setActiveSection('produtos')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeSection === 'produtos'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              <Package className="w-4 h-4" />
+              Produtos
+            </button>
+            <button
+              onClick={() => setActiveSection('cupons')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeSection === 'cupons'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              <TicketPercent className="w-4 h-4" />
+              Cupons
+            </button>
+          </div>
+
+          {/* Cupons Section */}
+          {activeSection === 'cupons' && <CuponsManager />}
+
+          {/* Products Section */}
+          {activeSection === 'produtos' && <>
 
           {/* Summary Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -998,6 +1543,7 @@ export default function AdminPage({ currentUser }: AdminPageProps) {
               </div>
             </TabsContent>
           </Tabs>
+          </>}
         </div>
       </main>
 

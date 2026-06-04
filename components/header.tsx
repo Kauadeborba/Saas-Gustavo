@@ -18,7 +18,7 @@ export function Header() {
               <Cpu className="w-6 h-6 text-white" />
             </div>
             <div className="hidden sm:block">
-              <h1 className="text-lg font-bold text-foreground">TechNote</h1>
+              <h1 className="text-lg font-bold text-foreground">GR Tech</h1>
               <p className="text-xs text-muted-foreground -mt-1">Peças e Notebooks</p>
             </div>
           </Link>
@@ -46,7 +46,7 @@ export function Header() {
 
           {/* WhatsApp Button - Desktop */}
           <a
-            href="https://wa.me/554884287544?text=Olá! Vim pelo site da TechNote."
+            href="https://wa.me/554884287544?text=Olá! Vim pelo site da GR Tech."
             target="_blank"
             rel="noopener noreferrer"
             className="hidden md:flex"
@@ -92,7 +92,7 @@ export function Header() {
               </Button>
             </Link>
             <a
-              href="https://wa.me/554884287544?text=Olá! Vim pelo site da TechNote."
+              href="https://wa.me/554884287544?text=Olá! Vim pelo site da GR Tech."
               target="_blank"
               rel="noopener noreferrer"
               className="mt-2"

@@ -54,7 +54,7 @@ export function HeroSection() {
               </Button>
             </Link>
             <a
-              href="https://wa.me/554884287544?text=Olá! Vim pelo site da TechNote e gostaria de mais informações."
+                    href="https://wa.me/554884287544?text=Olá! Vim pelo site da GR Tech e gostaria de mais informações."
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -112,7 +112,7 @@ export function BenefitsSection() {
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-            Por que escolher a <span className="text-gradient">TechNote</span>?
+            Por que escolher a <span className="text-gradient">GR Tech</span>?
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
             Oferecemos qualidade, confiança e o melhor atendimento para você
@@ -141,7 +141,7 @@ export function BenefitsSection() {
 
 export function CategoriesSection() {
   const categories = [
-    { name: 'Notebook', image:'/notebook.jpg'},
+    { name: 'Notebooks', image:'/notebook.jpg'},
     { name: 'SSDs', image: '/ssds.jpg' },
     { name: 'Memórias RAM', image: '/memorias-ram.jpg' },
     { name: 'Telas', image: '/telas.jpg' },

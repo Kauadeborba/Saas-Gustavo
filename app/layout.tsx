@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'TechNote - Peças e Notebooks',
+  title: 'GR Tech - Peças e Notebooks',
   description: 'Loja especializada em notebooks, peças e acessórios de informática. Produtos novos, usados e recondicionados com garantia e pronta entrega.',
   generator: 'v0.app',
   keywords: ['notebooks', 'peças de informática', 'SSD', 'memória RAM', 'teclados', 'fontes', 'assistência técnica'],
