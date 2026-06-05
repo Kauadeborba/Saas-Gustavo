@@ -142,7 +142,7 @@ export default function ProductPage({ params }: ProductPageProps) {
   const isAvailable = product.status === 'disponivel' && product.quantity > 0;
 
   const whatsappMessage = encodeURIComponent(
-    `Olá! Tenho interesse no produto:\n\n*${product.name}*\nPreço: ${formatPrice(product.price)}\nCondição: ${getConditionLabel(product.condition)}\n\nGostaria de mais informações.`
+    `Olá! Tenho interesse no produto:\n\n*${product.name}*\nPreço: ${formatPrice(discountedPrice ?? product.price)}\nCondição: ${getConditionLabel(product.condition)}\n\nGostaria de mais informações.`
   );
 
   return (
